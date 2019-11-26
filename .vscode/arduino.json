@@ -1,0 +1,7 @@
+{
+    "board": "arduino:sam:arduino_due_x",
+    "port": "/dev/cu.usbmodem2701",
+    "programmer": "ArduinoISP",
+    "sketch": "linnstrument-firmware.ino",
+    "output": "./build"
+}

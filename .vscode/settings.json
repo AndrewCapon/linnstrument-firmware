@@ -1,0 +1,15 @@
+{
+  "C_Cpp.intelliSenseEngine": "Tag Parser",
+  "files.associations": {
+    "cstddef": "cpp",
+    "__hash_table": "cpp",
+    "algorithm": "cpp",
+    "bitset": "cpp",
+    "locale": "cpp",
+    "memory": "cpp",
+    "optional": "cpp",
+    "ostream": "cpp",
+    "random": "cpp",
+    "string": "cpp"
+  }
+}

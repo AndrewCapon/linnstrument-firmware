@@ -1747,6 +1747,46 @@ inline byte getBendRange(byte split) {
   return bendRange;
 }
 
+// constrain full 48 note pitch to bend range
+int constrainPitch(byte split, int pitchValue) {
+  byte bendRange = getBendRange(split);
+
+  // Adapt for bend range
+  switch(bendRange)
+  {
+    // pure integer math cases
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 6:
+    case 8:
+    case 12:
+    case 16:
+    case 24:
+      {
+        int multiplier = 48 / bendRange;
+        int constrainedScaledPitch = constrain(pitchValue * multiplier, 0-8192, 8191);
+        pitchValue = constrainedScaledPitch / multiplier;
+      }
+      break;
+    // no calculations needed
+    case 48:
+      break;
+    // others need fixed point decimal math
+    default:
+      {
+        int multiplier = FXD_DIV(FXD_FROM_INT(48), FXD_FROM_INT(bendRange));
+        int constrainedScaledPitch = constrain(FXD_TO_INT(FXD_MUL(FXD_FROM_INT(pitchValue), multiplier)), 0-8192, 8191);
+        pitchValue = FXD_TO_INT(FXD_DIV(FXD_FROM_INT(constrainedScaledPitch), multiplier));
+      }
+      break;
+  }
+
+  
+  return pitchValue;
+}
+
 int scalePitch(byte split, int pitchValue) {
   byte bendRange = getBendRange(split);
 
@@ -2676,6 +2716,8 @@ void midiSendPitchBend(int pitchval, byte channel) {
     if (SWITCH_DEBUGMIDI) {
       Serial.print("midiSendPitchBend pitchval=");
       Serial.print(pitchval);
+      Serial.print(", bend=");
+      Serial.print(bend);
       Serial.print(", channel=");
       Serial.print((int)channel);
       Serial.print("\n");

@@ -1121,6 +1121,8 @@ void reset() {
   initializeLastMidiTracking();
 
   initializeSwitches();
+
+  initializeChannelOffsets();
 }
 
 boolean switchPressAtStartup(byte switchRow) {
