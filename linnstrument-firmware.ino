@@ -597,6 +597,12 @@ enum SequencerDirection {
   sequencerPingPong
 };
 
+enum MonoMode {
+  monoOff,
+  monoTriggeNote,
+  monoAlterPitch
+};
+
 // per-split settings
 struct SplitSettings {
   byte midiMode;                          // 0 = one channel, 1 = note per channel, 2 = row per channel
@@ -649,6 +655,7 @@ struct SplitSettings {
   boolean mpe;                            // true when MPE is active for this split
   boolean sequencer;                      // true when the sequencer of this split is displayed
   SequencerView sequencerView;            // see SequencerView
+  MonoMode monoMode;                      // The mono mode
 };
 
 #define Split config.settings.split

@@ -581,6 +581,8 @@ void initializePresetSettings() {
         p.split[s].mpe = false;
 
         p.split[s].sequencer = false;
+
+        p.split[s].monoMode = monoTriggeNote;
     }
 
     // initialize values that differ between the keyboard splits
@@ -1169,6 +1171,12 @@ void handlePerSplitSettingNewTouch() {
           }
           updateSplitMidiChannels(Global.currentPerSplit);
           break;
+        case 4: // monoMode
+          if(Split[Global.currentPerSplit].monoMode == monoOff)
+            Split[Global.currentPerSplit].monoMode = monoTriggeNote;
+          else
+            Split[Global.currentPerSplit].monoMode = monoOff;
+          break;
       }
       break;
 
@@ -1398,6 +1406,9 @@ void handlePerSplitSettingNewTouch() {
         case 5:
           setLed(sensorCol, sensorRow, getChannelPerRowColor(sensorSplit), cellSlowPulse);
           break;
+        case 4:
+          setLed(sensorCol, sensorRow, getMpeColor(sensorSplit), cellSlowPulse);
+          break;
       }
       break;
 
@@ -1476,6 +1487,10 @@ void handlePerSplitSettingHold() {
             break;
           case 5:
             Split[Global.currentPerSplit].midiChanPerRowReversed = true;
+            updateDisplay();
+            break;
+          case 4:
+            Split[Global.currentPerSplit].monoMode = monoAlterPitch;
             updateDisplay();
             break;
         }
@@ -1576,6 +1591,20 @@ void handlePerSplitSettingRelease() {
             setSplitMpeMode(Global.currentPerSplit, false);
           }
           break;
+
+        case 4:
+        {
+          if (ensureCellBeforeHoldWait(Split[Global.currentPerSplit].colorMain,
+                                       Split[Global.currentPerSplit].monoMode == monoOff ? cellOn : cellOff)) {
+            if(Split[Global.currentPerSplit].monoMode != monoOff){
+              Split[Global.currentPerSplit].monoMode = monoTriggeNote;
+            }
+            else {
+              Split[Global.currentPerSplit].monoMode= monoOff;
+            }
+          }
+          break;
+        }
       }
       break;
 

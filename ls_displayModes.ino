@@ -535,6 +535,24 @@ void paintPerSplitDisplay(byte side) {
 
   doublePerSplit = false;  
 
+  // set mono mode light
+  switch (Split[side].monoMode) {
+    case monoOff:
+    {
+      break;
+    }
+    case monoTriggeNote:
+    {
+      setLed(1, 4, Split[side].colorMain, cellOn);
+      break;
+    }
+    case monoAlterPitch:
+    {
+      setLed(1, 4, Split[side].colorAccent, cellOn);
+      break;
+    }
+  }
+
   // set Midi Mode and channel lights
   switch (Split[side].midiMode) {
     case oneChannel:
