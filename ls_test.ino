@@ -31,6 +31,24 @@ void debugPrintln(int level, int val) {
   }
 }
 
+void debugPrintf(int level, unsigned int line, const char* filename, const char* format, ...) {
+  if (Device.serialMode && (debugLevel >= level)) {
+    static char str[2048];
+    static char buffer[256];
+	  va_list args;
+	  va_start(args, format);
+  
+ 		char *slash = (char *)filename + (strlen(filename));
+		while ((*slash != '\\') && (*slash != '/') && (slash != (char *)filename)){
+      slash--;
+    }
+
+    sprintf(buffer, "%-32.32s [%-5.5u] %s",  slash+1, line, format);
+    vsnprintf(str, 2048, buffer, args);
+    Serial.print(str);
+  }
+}
+
 void displayDigitalPins() {
   static unsigned long lastFrame = 0;
   unsigned long now = micros();

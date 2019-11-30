@@ -23,8 +23,11 @@ currently debugging. After debugging something, either remove them or move them 
 
 #define DEBUGPRINT(x) debugPrint x
 
+#define DEBUGPRINTF(level, format, args...) debugPrintf(level, __LINE__, __FILE__, format, ## args);
+
 #else
 
 #define DEBUGPRINT(x)
+#define DEBUGPRINTF(level, format, args...) 
 
 #endif

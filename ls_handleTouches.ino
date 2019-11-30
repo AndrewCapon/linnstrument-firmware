@@ -43,6 +43,11 @@ void cellTouched(byte col, byte row, TouchState state) {
   
   // save the touched state for each cell
   cell(col, row).touched = state;
+  static char *states[] = {"untouched","ignored","transfer","touched"};
+  DEBUGPRINTF(0,"CellTouched[%u,%u] state = %s\n", col, row, states[state]);
+  // DEBUGPRINT((0, "CellTouched col = "));DEBUGPRINT((0, col));
+  // DEBUGPRINT((0, ", row = "));DEBUGPRINT((0, row));
+  // DEBUGPRINT((0, ", state = "));DEBUGPRINT((0, states[state]));DEBUGPRINT((0, "\n"));
 }
 
 #define TRANSFER_SLIDE_PROXIMITY 100
@@ -72,12 +77,11 @@ boolean potentialSlideTransferCandidate(byte col) {
     if (!requiresSequencerSlideTracking()) return false;
   }
   else {
-    if (sensorSplit != getSplitOf(col)) return false;
+    if (sensorSplit != getSplitOf(col)) return false;    
     FocusCell& focused = focus(getSplitOf(col), cell(col, sensorRow).channel);
-    DEBUGPRINT((0, "our   col = "));DEBUGPRINT((0, col));DEBUGPRINT((0, ", row = "));DEBUGPRINT((0, sensorRow));DEBUGPRINT((0, "\n"));
-    DEBUGPRINT((0, "focus col = "));DEBUGPRINT((0, focused.col));DEBUGPRINT((0, ", row = "));DEBUGPRINT((0, focused.row));DEBUGPRINT((0, "\n"));
-
-    DEBUGPRINT((0, "isFocusedCell(col, sensorRow) = "));DEBUGPRINT((0, isFocusedCell(col, sensorRow)));DEBUGPRINT((0, "\n"));
+    // DEBUGPRINTF(0, "*** check    [%u,%u] channel[%d]\n", col, sensorRow, cell(col, sensorRow).channel);
+    // DEBUGPRINTF(0, "*** focused  [%u,%u]\n", focused.col, focused.row);
+    // DEBUGPRINTF(0, "*** isFocused[%u,%u] channel[%d]\n", col, sensorRow, isFocusedCell(col, sensorRow));
       
     if (!isLowRow() &&                                                   // don't perform slide transfers
         (!Split[sensorSplit].sendX ||                                    // if pitch slides are disabled
@@ -186,6 +190,7 @@ void transferFromSameRowCell(byte col) {
 
   signed char channel = sensorCell->channel;
   if (channel > 0 && col == focus(sensorSplit, channel).col && sensorRow == focus(sensorSplit, channel).row) {
+    DEBUGPRINTF(0,"transferFromSameRowCell Set focus[%u,%u]\n", sensorCol, sensorRow);
     focus(sensorSplit, channel).col = sensorCol;
     focus(sensorSplit, channel).row = sensorRow;
   }
@@ -238,6 +243,7 @@ void transferToSameRowCell(byte col) {
 
   signed char channel = toCell->channel;
   if (channel > 0 && sensorCol == focus(sensorSplit, channel).col && sensorRow == focus(sensorSplit, channel).row) {
+    DEBUGPRINTF(0,"transferToSameRowCell Set focus[%u,%u]\n", sensorCol, sensorRow);
     focus(sensorSplit, channel).col = col;
     focus(sensorSplit, channel).row = sensorRow;
   }
@@ -376,9 +382,12 @@ boolean hasTouchInSplitOnRow(byte split, byte row) {
   return false;
 }
 
-void handleSlideTransferCandidate(byte siblingCol) {
+bool handleSlideTransferCandidate(byte siblingCol) {
+  bool result = false;
+
   // if the pressure gets higher than adjacent cell, the slide is transitioning over
   if (isReadyForSlideTransfer(siblingCol)) {
+    DEBUGPRINTF(0,"isReadyForSlideTransfer\n");
     transferFromSameRowCell(siblingCol);
  
     // if a slide transfer happened, but the pitch hold was still quantized, reset the
@@ -411,14 +420,19 @@ void handleSlideTransferCandidate(byte siblingCol) {
     }
     
     handleXYZupdate();
+
+    result = true;
   }
   // otherwise act as if this new touch never happend
   else {
     cellTouched(transferCell);
   }
+
+  return result;
 }
 
 boolean handleNewTouch() {
+  DEBUGPRINTF(0,"handleNewTouch[%u,%u] velocityZ = %u, pressureZ = %u\n", sensorCol, sensorRow, sensorCell->velocityZ, sensorCell->pressureZ);
   DEBUGPRINT((1,"handleNewTouch"));
   DEBUGPRINT((1," col="));DEBUGPRINT((1,(int)sensorCol));
   DEBUGPRINT((1," row="));DEBUGPRINT((1,(int)sensorRow));
@@ -497,13 +511,15 @@ boolean handleNewTouch() {
 
         // check if the new touch could be an ongoing slide to the right
         if (potentialSlideTransferCandidate(sensorCol-1)) {
-          handleSlideTransferCandidate(sensorCol-1);
-          DEBUGPRINT((0,"Slide Right\n"));
+          if(handleSlideTransferCandidate(sensorCol-1)){
+            DEBUGPRINTF(0,"Slide Right\n");
+          }
         }
         // check if the new touch could be an ongoing slide to the left
         else if (potentialSlideTransferCandidate(sensorCol+1)) {
-          handleSlideTransferCandidate(sensorCol+1);
-          DEBUGPRINT((0,"Slide Left\n"));
+          if(handleSlideTransferCandidate(sensorCol+1)){
+            DEBUGPRINTF(0,"Slide Left\n");
+          }
         }
         // only allow a certain number of touches in a single column to prevent cross talk
         else if (countTouchesInColumn() > MAX_TOUCHES_IN_COLUMN) {
@@ -513,19 +529,19 @@ boolean handleNewTouch() {
         // this is really a new touch without any relationship to an ongoing slide
         // however, it could be the low row and in certain situations it doesn't allow new touches
         else if (!isLowRow() || allowNewTouchOnLowRow()) {
-          DEBUGPRINT((0,"New touch\n"));
+          DEBUGPRINTF(0,"New touch\n");
           initVelocity();
           calcVelocity(sensorCell->velocityZ);
           result = true;
         }
         else {
-          DEBUGPRINT((0,"Untouched touch\n"));
+          DEBUGPRINTF(0,"Untouched touch\n");
           cellTouched(untouchedCell);
         }
 
         break;
       default:
-        DEBUGPRINT((0,"New touch 2\n"));
+        DEBUGPRINTF(0,"New touch 2\n");
         initVelocity();
         calcVelocity(sensorCell->velocityZ);
         result = true;
@@ -533,7 +549,7 @@ boolean handleNewTouch() {
     }
   }
 
-  DEBUGPRINT((0,"result = "));DEBUGPRINT((0,result));DEBUGPRINT((0,"\n\n"));
+  //DEBUGPRINT((0,"result = "));DEBUGPRINT((0,result));DEBUGPRINT((0,"\n\n"));
 
   return result;
 }
@@ -804,6 +820,7 @@ boolean handleXYZupdate() {
 
     case velocityNew:
       if (isPhantomTouchIndividual() || isPhantomTouchContextual()) {
+        DEBUGPRINTF(0,"Phantom touch[%u,%u]\n", sensorCol, sensorRow);
         cellTouched(untouchedCell);
         return false;
       }
@@ -910,14 +927,15 @@ boolean handleXYZupdate() {
       // Check to see if we have previous touches for channel
       // if so offset new note by inverse of stored note offset which 
       // has been calculated from pitchbend offsets
-      byte channel = takeChannel(sensorSplit, sensorRow);
       int pitchValue = 0;
       if(Split[sensorSplit].monoMode == monoOff)
       {
         byte channel = takeChannel(sensorSplit, sensorRow);
         byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, channel);
         if (touchesForChannel != 0) {
-          notenum -= getChannelOffset(sensorSplit, channel).noteOffset;
+          const ChannelOffset &channelOffset = getChannelOffset(sensorSplit, channel);
+          notenum -= channelOffset.noteOffset;
+          pitchValue = channelOffset.totalPitchOffset();
         }
       }
 
@@ -1764,6 +1782,7 @@ void handleTouchRelease() {
   boolean wasIgnored = (sensorCell->touched == ignoredCell);
 
   // mark this cell as no longer touched
+  DEBUGPRINTF(0,"handleTouchRelease[%u,%u]\n", sensorCol, sensorRow);
   cellTouched(untouchedCell);
 
   if (wasIgnored ||
@@ -2110,6 +2129,7 @@ void setFocusCellToLatest(byte sp, byte channel) {
         unsigned long last = cell(col, row).lastTouch;
         if (last > latestTouch) {                            // if this cell is touched later than any found so far...
           latestTouch = last;                                // then save it...
+          DEBUGPRINTF(0,"setFocusCellToLatest[%u,%u]\n", col, row);
           focus(sp, channel).col = col;                      // and reassign focus to this cell
           focus(sp, channel).row = row;
         }
@@ -2120,6 +2140,7 @@ void setFocusCellToLatest(byte sp, byte channel) {
   // at this point, all touched cells have been scanned and focus has been reassigned to the latest touched cell
   // if this was the last note to be released, reset the focused cell data
   if (latestTouch == 0) {
+    DEBUGPRINTF(0,"setFocusCellToLatest[0,0] default\n");
     focus(sp, channel).col = 0;   // column 0 are the control keys, so this combination can never be true for playing keys
     focus(sp, channel).row = 0;
   }
