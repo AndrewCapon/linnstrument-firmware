@@ -910,6 +910,8 @@ boolean handleXYZupdate() {
       // Check to see if we have previous touches for channel
       // if so offset new note by inverse of stored note offset which 
       // has been calculated from pitchbend offsets
+      byte channel = takeChannel(sensorSplit, sensorRow);
+      int pitchValue = 0;
       if(Split[sensorSplit].monoMode == monoOff)
       {
         byte channel = takeChannel(sensorSplit, sensorRow);
@@ -921,7 +923,7 @@ boolean handleXYZupdate() {
 
       // if the note number is outside of MIDI range, don't start it
       if (notenum >= 0 && notenum <= 127) {
-        prepareNewNote(notenum);
+        prepareNewNote(notenum, pitchValue);
       }
     }
   }
@@ -1283,7 +1285,7 @@ boolean isStrummingSplit(byte split) {
   return Global.splitActive && Split[split].strum;
 }
 
-void prepareNewNote(signed char notenum) {
+void prepareNewNote(signed char notenum, int pitchValue) {
   byte channel = takeChannel(sensorSplit, sensorRow);
   sensorCell->note = notenum;
   sensorCell->channel = channel;
@@ -1298,7 +1300,7 @@ void prepareNewNote(signed char notenum) {
   if (!userFirmwareActive) {
     if (Split[sensorSplit].sendX && isXExpressiveCell() && !isLowRowBendActive(sensorSplit)) {
       resetLastMidiPitchBend(sensorCell->channel);
-      preSendPitchBend(sensorSplit, 0, sensorCell->channel);
+      preSendPitchBend(sensorSplit, pitchValue, sensorCell->channel);
     }
     if (Split[sensorSplit].sendZ && isZExpressiveCell()) {
       preResetLastLoudness(sensorSplit, sensorCell->note, sensorCell->channel);
