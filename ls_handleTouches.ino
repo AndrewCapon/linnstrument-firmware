@@ -967,97 +967,99 @@ boolean handleXYZupdate() {
 
         int pitch = valueX;
 
-        // if there are several touches for the same MIDI channel (for instance in one channel mode)
-        // we average the X values to have only one global X value for those touches
-        byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, sensorCol, sensorRow);
-        const struct ChannelOffset &channelOffset = getChannelOffset(sensorSplit, sensorCell->channel);
+        if(Split[sensorSplit].midiMode != 1) { // disable for channel per note mode
+          // if there are several touches for the same MIDI channel (for instance in one channel mode)
+          // we average the X values to have only one global X value for those touches
+          byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, sensorCol, sensorRow);
+          const struct ChannelOffset &channelOffset = getChannelOffset(sensorSplit, sensorCell->channel);
 
-        if(touchesForChannel == 1){
-          // store pitchbend note for the channel
-          storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel);
+          if(touchesForChannel == 1){
+            // store pitchbend note for the channel
+            storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel);
 
-          //  and adjust pitch by historic value
-          pitch+=channelOffset.historicPitchOffset;
-        }
-        else 
+            //  and adjust pitch by historic value
+            pitch+=channelOffset.historicPitchOffset;
+          }
+          else 
 #ifdef USE_PB_AVERAGE
-          if(touchesForChannel > 1){
-            // average of touches, make sure calculations use values constrained to the splits pitch bend range
-            // Use PB of first note and offset all the rest
+            if(touchesForChannel > 1){
+              // average of touches, make sure calculations use values constrained to the splits pitch bend range
+              // Use PB of first note and offset all the rest
 
-            // start with the current sensor's pitch and note
-            // adjust pitch as this is not the col row for our channel offset so adjust by pitch offset
-            // make sure we constrain valueX to splits pitchbend range
-            int useValueX = constrainPitch(sensorSplit, valueX + channelOffset.totalPitchOffset()); 
+              // start with the current sensor's pitch and note
+              // adjust pitch as this is not the col row for our channel offset so adjust by pitch offset
+              // make sure we constrain valueX to splits pitchbend range
+              int useValueX = constrainPitch(sensorSplit, valueX + channelOffset.totalPitchOffset()); 
 
-            int highestNotePitch = useValueX;
-            signed char highestNote = sensorCell->note;
+              int highestNotePitch = useValueX;
+              signed char highestNote = sensorCell->note;
 
-            // start with the current sensor's constrained X value
-            long averagePitch = useValueX;
-            byte averageDivider = 1;
+              // start with the current sensor's constrained X value
+              long averagePitch = useValueX;
+              byte averageDivider = 1;
 
-            // iterate over all the rows             
-            for (byte row = 0; row < NUMROWS; ++row) {
+              // iterate over all the rows             
+              for (byte row = 0; row < NUMROWS; ++row) {
 
-              // exclude the current sensor for the rest of the logic, we already
-              // took it into account
-              int32_t colsInRowTouched = colsInRowsTouched[row];
-              if (row == sensorRow) {
-                colsInRowTouched = colsInRowTouched & ~(1 << sensorCol);
-              }
-
-              // continue while there are touched columns in the row
-              while (colsInRowTouched) {
-                byte touchedCol = 31 - __builtin_clz(colsInRowTouched);
-                
-                // add the X value of the cell to the average that's being calculated if the cell
-                // is on the same channel
-                if (cell(touchedCol, row).touched == touchedCell &&
-                    cell(touchedCol, row).lastValueX != INVALID_DATA &&
-                    cell(touchedCol, row).channel == sensorCell->channel) {
-            
-                  
-                  int uselastValueX = cell(touchedCol, row).lastValueX;
-
-                  // offset the pitch for channel offsets.
-                  uselastValueX += channelOffset.pitchOffsetForColRow(touchedCol,row);
-
-                  // contrain the pitch to the splits pitchbend range
-                  int constrainedPitch = constrainPitch(sensorSplit, uselastValueX);
-
-                  if (cell(touchedCol, row).note >= highestNote) {
-                    highestNote = cell(touchedCol, row).note;
-                    highestNotePitch = constrainedPitch;
-                  }
-
-                  averagePitch += constrainedPitch;
-                  averageDivider++;
+                // exclude the current sensor for the rest of the logic, we already
+                // took it into account
+                int32_t colsInRowTouched = colsInRowsTouched[row];
+                if (row == sensorRow) {
+                  colsInRowTouched = colsInRowTouched & ~(1 << sensorCol);
                 }
-                // exclude the cell we just processed by flipping its bit
-                colsInRowTouched &= ~(1 << touchedCol);
+
+                // continue while there are touched columns in the row
+                while (colsInRowTouched) {
+                  byte touchedCol = 31 - __builtin_clz(colsInRowTouched);
+                  
+                  // add the X value of the cell to the average that's being calculated if the cell
+                  // is on the same channel
+                  if (cell(touchedCol, row).touched == touchedCell &&
+                      cell(touchedCol, row).lastValueX != INVALID_DATA &&
+                      cell(touchedCol, row).channel == sensorCell->channel) {
+              
+                    
+                    int uselastValueX = cell(touchedCol, row).lastValueX;
+
+                    // offset the pitch for channel offsets.
+                    uselastValueX += channelOffset.pitchOffsetForColRow(touchedCol,row);
+
+                    // contrain the pitch to the splits pitchbend range
+                    int constrainedPitch = constrainPitch(sensorSplit, uselastValueX);
+
+                    if (cell(touchedCol, row).note >= highestNote) {
+                      highestNote = cell(touchedCol, row).note;
+                      highestNotePitch = constrainedPitch;
+                    }
+
+                    averagePitch += constrainedPitch;
+                    averageDivider++;
+                  }
+                  // exclude the cell we just processed by flipping its bit
+                  colsInRowTouched &= ~(1 << touchedCol);
+                }
+              }
+
+              // calculate the average pitch of the notes that exclude the highest note
+              averagePitch = (averagePitch - highestNotePitch) / (averageDivider - 1);
+
+              // use the pitch that has the most influence
+              if (abs(highestNotePitch) > abs(averagePitch)) {
+                pitch = highestNotePitch;
+              }
+              else {
+                pitch = averagePitch;
               }
             }
 
-            // calculate the average pitch of the notes that exclude the highest note
-            averagePitch = (averagePitch - highestNotePitch) / (averageDivider - 1);
-
-            // use the pitch that has the most influence
-            if (abs(highestNotePitch) > abs(averagePitch)) {
-              pitch = highestNotePitch;
+ #else 
+            // Just use pitchbend of last touch         
+            if(touchesForChannel > 1){
+              // use most recent pitch but offset by stored value
+              pitch += getChannelOffset(sensorSplit, sensorCell->channel).totalPitchOffset();
             }
-            else {
-              pitch = averagePitch;
-            }
-          }
-
-#else 
-          // Just use pitchbend of last touch         
-          if(touchesForChannel > 1){
-            // use most recent pitch but offset by stored value
-            pitch += getChannelOffset(sensorSplit, sensorCell->channel).totalPitchOffset();
-          }
 #endif          
+        }
 
         preSendPitchBend(sensorSplit, pitch, sensorCell->channel);
       }
