@@ -18,6 +18,7 @@ struct __attribute__ ((packed)) ChannelOffset {
     row = 0;
     col = 0;
     initState = true;
+    noteNum = -1;
   }
 
   // return true if we are for column/row
@@ -56,6 +57,7 @@ struct __attribute__ ((packed)) ChannelOffset {
   byte    col:5;
   byte    row:3;
   bool    initState;
+  int8_t  noteNum;
 };
 
 
@@ -95,9 +97,10 @@ inline void updateChannelOffsetColRow(byte split, byte channel, byte col, byte r
 
 // Store Pitch bend offset for a channel
 // also calculate note offset
-inline void storeChannelOffset(byte split, int &pitch, byte col, byte row, byte channel) {
+inline void storeChannelOffset(byte split, int &pitch, byte col, byte row, byte channel, int8_t noteNum) {
   static int32_t fpPBPerNote = FXD_DIV(8192, 48); // Only calculate once
 
+  DEBUGPRINTF(0,"storeChannelOffset noteNum = %d\n", noteNum);
   ChannelOffset &channelOffset = channelOffsets.offset[channel][split];
 
   if(channelOffset.shouldApplyHistoricPitchOffset(sensorCol, sensorRow)){
@@ -115,6 +118,7 @@ inline void storeChannelOffset(byte split, int &pitch, byte col, byte row, byte 
   channelOffset.col = col;
   channelOffset.row = row;
   channelOffset.initState = false;
+  channelOffset.noteNum = noteNum;
 }
 
 // Handle release cell for split/channel, if no notes held initialize offset

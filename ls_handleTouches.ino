@@ -871,6 +871,8 @@ boolean handleXYZupdate() {
     handleNotes = false;
   }
 
+  short notenum = 0;
+
   // this cell corresponds to a playing note
   if (newVelocity) {
     sensorCell->lastTouch = millis();
@@ -896,7 +898,7 @@ boolean handleXYZupdate() {
       handleSplitStrum();
     }
     else if (handleNotes) {
-      short notenum = cellTransposedNote(sensorSplit);
+      notenum = cellTransposedNote(sensorSplit);
 
       // if there was a previous note and automatic octave switching is enabled,
       // check if the conditions are met to change the octave up or down while playing
@@ -928,8 +930,7 @@ boolean handleXYZupdate() {
       // if so offset new note by inverse of stored note offset which 
       // has been calculated from pitchbend offsets
       int pitchValue = 0;
-      if(Split[sensorSplit].monoMode == monoOff)
-      {
+      if(Split[sensorSplit].monoMode == monoOff) {
         byte channel = takeChannel(sensorSplit, sensorRow);
         byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, channel);
         if (touchesForChannel != 0) {
@@ -938,7 +939,26 @@ boolean handleXYZupdate() {
           pitchValue = channelOffset.totalPitchOffset();
         }
       }
+      else { 
+        if(Split[sensorSplit].monoMode == monoAlterPitch) {
+          byte channel = takeChannel(sensorSplit, sensorRow);
+          byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, channel);
+          if (touchesForChannel != 0) {
+            // we need to calculate the pitch based on the offset
+            const ChannelOffset &channelOffset = getChannelOffset(sensorSplit, channel);
 
+            static int32_t fpPBPerNote = FXD_DIV(8192, 48); // Only calculate once
+            
+            short noteOffset = notenum - channelOffset.noteNum;
+            int  pitchOffset = FXD_TO_INT(FXD_MUL(FXD_FROM_INT(noteOffset), fpPBPerNote));
+            notenum -= channelOffset.noteOffset;
+            pitchValue += channelOffset.totalPitchOffset() + pitchOffset;
+
+            DEBUGPRINTF(0, "monoAlterPitch[%u,%u] notenum = %u, noteOffset = %hd, pitchOffset = %d, co.noteNum = %d, co.totalPitchOffset = %d, pitchValue = %d\n", sensorCol, sensorRow, notenum, noteOffset, pitchOffset, channelOffset.noteNum, channelOffset.totalPitchOffset(), pitchValue);
+            DEBUGPRINT((0, noteOffset));DEBUGPRINT((0, "\n"));
+          }
+        }
+      }
       // if the note number is outside of MIDI range, don't start it
       if (notenum >= 0 && notenum <= 127) {
         prepareNewNote(notenum, pitchValue);
@@ -1032,15 +1052,20 @@ boolean handleXYZupdate() {
 
         int pitch = valueX;
 
+        byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, sensorCol, sensorRow);
+        if(touchesForChannel == 1){
+          // store pitchbend note for the channel
+          storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel, notenum);
+        }
+
         if(Split[sensorSplit].monoMode == monoOff){
           // if there are several touches for the same MIDI channel (for instance in one channel mode)
           // we average the X values to have only one global X value for those touches
-          byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, sensorCol, sensorRow);
           const struct ChannelOffset &channelOffset = getChannelOffset(sensorSplit, sensorCell->channel);
 
           if(touchesForChannel == 1){
-            // store pitchbend note for the channel
-            storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel);
+            // // store pitchbend note for the channel
+            // storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel, notenum);
 
             //  and adjust pitch by historic value
             pitch+=channelOffset.historicPitchOffset;

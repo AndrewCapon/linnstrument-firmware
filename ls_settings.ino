@@ -582,7 +582,7 @@ void initializePresetSettings() {
 
         p.split[s].sequencer = false;
 
-        p.split[s].monoMode = monoTriggeNote;
+        p.split[s].monoMode = monoAlterPitch;
     }
 
     // initialize values that differ between the keyboard splits
