@@ -177,6 +177,7 @@ void initializeTouchInfo() {
       cell(col, row).octaveOffset = 0;
       cell(col, row).fxdPrevPressure = 0;
       cell(col, row).fxdPrevTimbre = FXD_CONST_255;
+      cell(col, row).pitchOffset = 0;
       cell(col, row).clearPhantoms();
     }
   }

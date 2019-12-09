@@ -361,7 +361,9 @@ int :4;
   byte velocity:7;                           // velocity from 0 to 127
   boolean shouldRefreshZ:1;                  // indicate whether it's necessary to refresh Z
   byte velocityZ:7;                          // the Z value with velocity sensitivity
+  int pitchOffset;                           // pitchOffset for monoAlterPitch mode
 };
+
 TouchInfo touchInfo[MAXCOLS][MAXROWS];       // store as much touch information instances as there are cells
 
 TouchInfo* sensorCell = &touchInfo[0][0];

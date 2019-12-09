@@ -43,8 +43,8 @@ void cellTouched(byte col, byte row, TouchState state) {
   
   // save the touched state for each cell
   cell(col, row).touched = state;
-  static char *states[] = {"untouched","ignored","transfer","touched"};
-  DEBUGPRINTF(0,"CellTouched[%u,%u] state = %s\n", col, row, states[state]);
+  //static char *states[] = {"untouched","ignored","transfer","touched"};
+  //DEBUGPRINTF(0,"CellTouched[%u,%u] state = %s\n", col, row, states[state]);
   // DEBUGPRINT((0, "CellTouched col = "));DEBUGPRINT((0, col));
   // DEBUGPRINT((0, ", row = "));DEBUGPRINT((0, row));
   // DEBUGPRINT((0, ", state = "));DEBUGPRINT((0, states[state]));DEBUGPRINT((0, "\n"));
@@ -166,6 +166,7 @@ void transferFromSameRowCell(byte col) {
   sensorCell->fxdPrevTimbre = fromCell->fxdPrevTimbre;
   sensorCell->velocity = fromCell->velocity;
   sensorCell->vcount = fromCell->vcount;
+  sensorCell->pitchOffset = fromCell->pitchOffset;
   noteTouchMapping[sensorSplit].changeCell(sensorCell->note, sensorCell->channel, sensorCol, sensorRow);
 
   fromCell->lastTouch = 0;
@@ -186,11 +187,12 @@ void transferFromSameRowCell(byte col) {
   fromCell->fxdPrevPressure = 0;
   fromCell->fxdPrevTimbre = FXD_CONST_255;
   fromCell->velocity = 0;
+  fromCell->pitchOffset = 0;
   // do not reset vcount!
 
   signed char channel = sensorCell->channel;
   if (channel > 0 && col == focus(sensorSplit, channel).col && sensorRow == focus(sensorSplit, channel).row) {
-    DEBUGPRINTF(0,"transferFromSameRowCell Set focus[%u,%u]\n", sensorCol, sensorRow);
+    //DEBUGPRINTF(0,"transferFromSameRowCell Set focus[%u,%u]\n", sensorCol, sensorRow);
     focus(sensorSplit, channel).col = sensorCol;
     focus(sensorSplit, channel).row = sensorRow;
   }
@@ -219,6 +221,7 @@ void transferToSameRowCell(byte col) {
   toCell->fxdPrevTimbre = sensorCell->fxdPrevTimbre;
   toCell->velocity = sensorCell->velocity;
   toCell->vcount = sensorCell->vcount;
+  toCell->pitchOffset = sensorCell->pitchOffset;
   noteTouchMapping[sensorSplit].changeCell(toCell->note, toCell->channel, col, sensorRow);
 
   sensorCell->lastTouch = 0;
@@ -239,11 +242,12 @@ void transferToSameRowCell(byte col) {
   sensorCell->fxdPrevPressure = 0;
   sensorCell->fxdPrevTimbre = FXD_CONST_255;
   sensorCell->velocity = 0;
+  sensorCell->pitchOffset = 0;
   // do not reset vcount!
 
   signed char channel = toCell->channel;
   if (channel > 0 && sensorCol == focus(sensorSplit, channel).col && sensorRow == focus(sensorSplit, channel).row) {
-    DEBUGPRINTF(0,"transferToSameRowCell Set focus[%u,%u]\n", sensorCol, sensorRow);
+    //DEBUGPRINTF(0,"transferToSameRowCell Set focus[%u,%u]\n", sensorCol, sensorRow);
     focus(sensorSplit, channel).col = col;
     focus(sensorSplit, channel).row = sensorRow;
   }
@@ -387,7 +391,7 @@ bool handleSlideTransferCandidate(byte siblingCol) {
 
   // if the pressure gets higher than adjacent cell, the slide is transitioning over
   if (isReadyForSlideTransfer(siblingCol)) {
-    DEBUGPRINTF(0,"isReadyForSlideTransfer\n");
+    //"isReadyForSlideTransfer\n");
     transferFromSameRowCell(siblingCol);
  
     // if a slide transfer happened, but the pitch hold was still quantized, reset the
@@ -512,13 +516,13 @@ boolean handleNewTouch() {
         // check if the new touch could be an ongoing slide to the right
         if (potentialSlideTransferCandidate(sensorCol-1)) {
           if(handleSlideTransferCandidate(sensorCol-1)){
-            DEBUGPRINTF(0,"Slide Right\n");
+            //DEBUGPRINTF(0,"Slide Right\n");
           }
         }
         // check if the new touch could be an ongoing slide to the left
         else if (potentialSlideTransferCandidate(sensorCol+1)) {
           if(handleSlideTransferCandidate(sensorCol+1)){
-            DEBUGPRINTF(0,"Slide Left\n");
+            //DEBUGPRINTF(0,"Slide Left\n");
           }
         }
         // only allow a certain number of touches in a single column to prevent cross talk
@@ -529,19 +533,19 @@ boolean handleNewTouch() {
         // this is really a new touch without any relationship to an ongoing slide
         // however, it could be the low row and in certain situations it doesn't allow new touches
         else if (!isLowRow() || allowNewTouchOnLowRow()) {
-          DEBUGPRINTF(0,"New touch\n");
+          //DEBUGPRINTF(0,"New touch\n");
           initVelocity();
           calcVelocity(sensorCell->velocityZ);
           result = true;
         }
         else {
-          DEBUGPRINTF(0,"Untouched touch\n");
+          //DEBUGPRINTF(0,"Untouched touch\n");
           cellTouched(untouchedCell);
         }
 
         break;
       default:
-        DEBUGPRINTF(0,"New touch 2\n");
+        //DEBUGPRINTF(0,"New touch 2\n");
         initVelocity();
         calcVelocity(sensorCell->velocityZ);
         result = true;
@@ -820,7 +824,7 @@ boolean handleXYZupdate() {
 
     case velocityNew:
       if (isPhantomTouchIndividual() || isPhantomTouchContextual()) {
-        DEBUGPRINTF(0,"Phantom touch[%u,%u]\n", sensorCol, sensorRow);
+        //DEBUGPRINTF(0,"Phantom touch[%u,%u]\n", sensorCol, sensorRow);
         cellTouched(untouchedCell);
         return false;
       }
@@ -930,6 +934,7 @@ boolean handleXYZupdate() {
       // if so offset new note by inverse of stored note offset which 
       // has been calculated from pitchbend offsets
       int pitchValue = 0;
+      int pitchOffset = 0;
       if(Split[sensorSplit].monoMode == monoOff) {
         byte channel = takeChannel(sensorSplit, sensorRow);
         byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, channel);
@@ -948,20 +953,18 @@ boolean handleXYZupdate() {
             const ChannelOffset &channelOffset = getChannelOffset(sensorSplit, channel);
 
             static int32_t fpPBPerNote = FXD_DIV(8192, 48); // Only calculate once
-            
-            short noteOffset = notenum - channelOffset.noteNum;
-            int  pitchOffset = FXD_TO_INT(FXD_MUL(FXD_FROM_INT(noteOffset), fpPBPerNote));
-            notenum -= channelOffset.noteOffset;
-            pitchValue += channelOffset.totalPitchOffset() + pitchOffset;
 
-            DEBUGPRINTF(0, "monoAlterPitch[%u,%u] notenum = %u, noteOffset = %hd, pitchOffset = %d, co.noteNum = %d, co.totalPitchOffset = %d, pitchValue = %d\n", sensorCol, sensorRow, notenum, noteOffset, pitchOffset, channelOffset.noteNum, channelOffset.totalPitchOffset(), pitchValue);
-            DEBUGPRINT((0, noteOffset));DEBUGPRINT((0, "\n"));
+            short noteOffset = notenum - channelOffset.noteNum;
+
+            pitchOffset = FXD_TO_INT(FXD_MUL(FXD_FROM_INT(noteOffset), fpPBPerNote));
+
+//            DEBUGPRINTF(0, "monoAlterPitch[%u,%u] notenum = %u,  = %d, origNote = %d, noteOffset = %d, pitchOffset = %d\n", sensorCol, sensorRow, notenum, origNote, noteOffset, pitchOffset);
           }
         }
       }
       // if the note number is outside of MIDI range, don't start it
       if (notenum >= 0 && notenum <= 127) {
-        prepareNewNote(notenum, pitchValue);
+        prepareNewNote(notenum, pitchValue, pitchOffset);
       }
     }
   }
@@ -1052,106 +1055,109 @@ boolean handleXYZupdate() {
 
         int pitch = valueX;
 
-        byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, sensorCol, sensorRow);
-        if(touchesForChannel == 1){
-          // store pitchbend note for the channel
-          storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel, notenum);
-        }
-
-        if(Split[sensorSplit].monoMode == monoOff){
-          // if there are several touches for the same MIDI channel (for instance in one channel mode)
-          // we average the X values to have only one global X value for those touches
-          const struct ChannelOffset &channelOffset = getChannelOffset(sensorSplit, sensorCell->channel);
-
+        if(Split[sensorSplit].midiMode != 1) { // disable for channel per note mode
+          byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, sensorCol, sensorRow);
           if(touchesForChannel == 1){
-            // // store pitchbend note for the channel
-            // storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel, notenum);
-
-            //  and adjust pitch by historic value
-            pitch+=channelOffset.historicPitchOffset;
+            // store pitchbend note for the channel
+            storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel, sensorCell->note);
           }
-          else 
+
+          if(Split[sensorSplit].monoMode == monoOff){
+            // if there are several touches for the same MIDI channel (for instance in one channel mode)
+            // we average the X values to have only one global X value for those touches
+            const struct ChannelOffset &channelOffset = getChannelOffset(sensorSplit, sensorCell->channel);
+
+            if(touchesForChannel == 1){
+              // // store pitchbend note for the channel
+              // storeChannelOffset(sensorSplit, pitch, sensorCol, sensorRow, sensorCell->channel, notenum);
+
+              //  and adjust pitch by historic value
+              pitch+=channelOffset.historicPitchOffset;
+            }
+            else 
 #ifdef USE_PB_AVERAGE
-            if(touchesForChannel > 1){
-              // average of touches, make sure calculations use values constrained to the splits pitch bend range
-              // Use PB of first note and offset all the rest
+              if(touchesForChannel > 1){
+                // average of touches, make sure calculations use values constrained to the splits pitch bend range
+                // Use PB of first note and offset all the rest
 
-              // start with the current sensor's pitch and note
-              // adjust pitch as this is not the col row for our channel offset so adjust by pitch offset
-              // make sure we constrain valueX to splits pitchbend range
-              int useValueX = constrainPitch(sensorSplit, valueX + channelOffset.totalPitchOffset()); 
+                // start with the current sensor's pitch and note
+                // adjust pitch as this is not the col row for our channel offset so adjust by pitch offset
+                // make sure we constrain valueX to splits pitchbend range
+                int useValueX = constrainPitch(sensorSplit, valueX + channelOffset.totalPitchOffset()); 
 
-              int highestNotePitch = useValueX;
-              signed char highestNote = sensorCell->note;
+                int highestNotePitch = useValueX;
+                signed char highestNote = sensorCell->note;
 
-              // start with the current sensor's constrained X value
-              long averagePitch = useValueX;
-              byte averageDivider = 1;
+                // start with the current sensor's constrained X value
+                long averagePitch = useValueX;
+                byte averageDivider = 1;
 
-              // iterate over all the rows             
-              for (byte row = 0; row < NUMROWS; ++row) {
+                // iterate over all the rows             
+                for (byte row = 0; row < NUMROWS; ++row) {
 
-                // exclude the current sensor for the rest of the logic, we already
-                // took it into account
-                int32_t colsInRowTouched = colsInRowsTouched[row];
-                if (row == sensorRow) {
-                  colsInRowTouched = colsInRowTouched & ~(1 << sensorCol);
-                }
-
-                // continue while there are touched columns in the row
-                while (colsInRowTouched) {
-                  byte touchedCol = 31 - __builtin_clz(colsInRowTouched);
-                  
-                  // add the X value of the cell to the average that's being calculated if the cell
-                  // is on the same channel
-                  if (cell(touchedCol, row).touched == touchedCell &&
-                      cell(touchedCol, row).lastValueX != INVALID_DATA &&
-                      cell(touchedCol, row).channel == sensorCell->channel) {
-              
-                    
-                    int uselastValueX = cell(touchedCol, row).lastValueX;
-
-                    // offset the pitch for channel offsets.
-                    uselastValueX += channelOffset.pitchOffsetForColRow(touchedCol,row);
-
-                    // contrain the pitch to the splits pitchbend range
-                    int constrainedPitch = constrainPitch(sensorSplit, uselastValueX);
-
-                    if (cell(touchedCol, row).note >= highestNote) {
-                      highestNote = cell(touchedCol, row).note;
-                      highestNotePitch = constrainedPitch;
-                    }
-
-                    averagePitch += constrainedPitch;
-                    averageDivider++;
+                  // exclude the current sensor for the rest of the logic, we already
+                  // took it into account
+                  int32_t colsInRowTouched = colsInRowsTouched[row];
+                  if (row == sensorRow) {
+                    colsInRowTouched = colsInRowTouched & ~(1 << sensorCol);
                   }
-                  // exclude the cell we just processed by flipping its bit
-                  colsInRowTouched &= ~(1 << touchedCol);
+
+                  // continue while there are touched columns in the row
+                  while (colsInRowTouched) {
+                    byte touchedCol = 31 - __builtin_clz(colsInRowTouched);
+                    
+                    // add the X value of the cell to the average that's being calculated if the cell
+                    // is on the same channel
+                    if (cell(touchedCol, row).touched == touchedCell &&
+                        cell(touchedCol, row).lastValueX != INVALID_DATA &&
+                        cell(touchedCol, row).channel == sensorCell->channel) {
+                
+                      
+                      int uselastValueX = cell(touchedCol, row).lastValueX;
+
+                      // offset the pitch for channel offsets.
+                      uselastValueX += channelOffset.pitchOffsetForColRow(touchedCol,row);
+
+                      // contrain the pitch to the splits pitchbend range
+                      int constrainedPitch = constrainPitch(sensorSplit, uselastValueX);
+
+                      if (cell(touchedCol, row).note >= highestNote) {
+                        highestNote = cell(touchedCol, row).note;
+                        highestNotePitch = constrainedPitch;
+                      }
+
+                      averagePitch += constrainedPitch;
+                      averageDivider++;
+                    }
+                    // exclude the cell we just processed by flipping its bit
+                    colsInRowTouched &= ~(1 << touchedCol);
+                  }
+                }
+
+                // calculate the average pitch of the notes that exclude the highest note
+                averagePitch = (averagePitch - highestNotePitch) / (averageDivider - 1);
+
+                // use the pitch that has the most influence
+                if (abs(highestNotePitch) > abs(averagePitch)) {
+                  pitch = highestNotePitch;
+                }
+                else {
+                  pitch = averagePitch;
                 }
               }
 
-              // calculate the average pitch of the notes that exclude the highest note
-              averagePitch = (averagePitch - highestNotePitch) / (averageDivider - 1);
-
-              // use the pitch that has the most influence
-              if (abs(highestNotePitch) > abs(averagePitch)) {
-                pitch = highestNotePitch;
+#else 
+              // Just use pitchbend of last touch         
+              if(touchesForChannel > 1){
+                // use most recent pitch but offset by stored value
+                pitch += getChannelOffset(sensorSplit, sensorCell->channel).totalPitchOffset();
               }
-              else {
-                pitch = averagePitch;
-              }
-            }
-
- #else 
-            // Just use pitchbend of last touch         
-            if(touchesForChannel > 1){
-              // use most recent pitch but offset by stored value
-              pitch += getChannelOffset(sensorSplit, sensorCell->channel).totalPitchOffset();
-            }
 #endif          
+          }
         }
 
-        preSendPitchBend(sensorSplit, pitch, sensorCell->channel);
+        //DEBUGPRINTF(0,"Pitch = %d, PitchOffset = %d\n", pitch, sensorCell->pitchOffset);
+        preSendPitchBend(sensorSplit, pitch+sensorCell->pitchOffset, sensorCell->channel);
       }
 
       // if Y-axis movements are enabled and it's a candidate for
@@ -1328,12 +1334,13 @@ boolean isStrummingSplit(byte split) {
   return Global.splitActive && Split[split].strum;
 }
 
-void prepareNewNote(signed char notenum, int pitchValue) {
+void prepareNewNote(signed char notenum, int pitchValue, int pitchOffset) {
   byte channel = takeChannel(sensorSplit, sensorRow);
   sensorCell->note = notenum;
   sensorCell->channel = channel;
   sensorCell->octaveOffset = Split[sensorSplit].transposeOctave;
-  
+  sensorCell->pitchOffset = pitchOffset;
+  DEBUGPRINTF(0,"prepareNewNote(%d, %d, %d)\n", notenum, pitchValue, pitchOffset);
   // change the focused cell
   FocusCell& focused = focus(sensorSplit, channel);
   focused.col = sensorCol;
@@ -1343,7 +1350,7 @@ void prepareNewNote(signed char notenum, int pitchValue) {
   if (!userFirmwareActive) {
     if (Split[sensorSplit].sendX && isXExpressiveCell() && !isLowRowBendActive(sensorSplit)) {
       resetLastMidiPitchBend(sensorCell->channel);
-      preSendPitchBend(sensorSplit, pitchValue, sensorCell->channel);
+      preSendPitchBend(sensorSplit, pitchValue + pitchOffset, sensorCell->channel);
     }
     if (Split[sensorSplit].sendZ && isZExpressiveCell()) {
       preResetLastLoudness(sensorSplit, sensorCell->note, sensorCell->channel);
@@ -1387,14 +1394,17 @@ void sendNewNote() {
       preSendLoudness(sensorSplit, 0, 0, sensorCell->note, sensorCell->channel);
     }
 
-    // if the same channel and note is already active, send a note off first
-    // so that the new touch properly triggers a new note
-    if (hasActiveMidiNote(sensorSplit, sensorCell->note, sensorCell->channel)) {
-      midiSendNoteOff(sensorSplit, sensorCell->note, sensorCell->channel);
-    }
+    if(channelOffsetShouldSendNoteOn(sensorSplit, sensorCell->channel, sensorCell->note)) {    
+      // if the same channel and note is already active, send a note off first
+      // so that the new touch properly triggers a new note
+      DEBUGPRINTF(0,"NOTE ON\n")
+      if (hasActiveMidiNote(sensorSplit, sensorCell->note, sensorCell->channel)) {
+        midiSendNoteOff(sensorSplit, sensorCell->note, sensorCell->channel);
+      }
 
-    // send the note on
-    midiSendNoteOn(sensorSplit, sensorCell->note, sensorCell->velocity, sensorCell->channel);
+      // send the note on
+      midiSendNoteOn(sensorSplit, sensorCell->note, sensorCell->velocity, sensorCell->channel);
+    }
   }
 }
 
@@ -1427,8 +1437,17 @@ void sendReleasedNote() {
       }
     }
 
-    // if there are no other touches down with the same note and channel, send the note off message
-    midiSendNoteOffWithVelocity(sensorSplit, sensorCell->note, sensorCell->velocity, sensorCell->channel);
+    // only send note off for monoAlterPitch mode if all notes released
+    if(Split[sensorSplit].monoMode == monoAlterPitch){
+      if(countTouchesForMidiChannel(sensorSplit, sensorCell->channel) == 0) {
+        const ChannelOffset &channelOffset = getChannelOffset(sensorSplit, sensorCell->channel);
+        midiSendNoteOffWithVelocity(sensorSplit, channelOffset.noteNum, sensorCell->velocity, sensorCell->channel);
+      }
+    }
+    else {
+      // if there are no other touches down with the same note and channel, send the note off message
+      midiSendNoteOffWithVelocity(sensorSplit, sensorCell->note, sensorCell->velocity, sensorCell->channel);
+    }
   }
 }
 
@@ -2154,7 +2173,7 @@ void setFocusCellToLatest(byte sp, byte channel) {
         unsigned long last = cell(col, row).lastTouch;
         if (last > latestTouch) {                            // if this cell is touched later than any found so far...
           latestTouch = last;                                // then save it...
-          DEBUGPRINTF(0,"setFocusCellToLatest[%u,%u]\n", col, row);
+          //DEBUGPRINTF(0,"setFocusCellToLatest[%u,%u]\n", col, row);
           focus(sp, channel).col = col;                      // and reassign focus to this cell
           focus(sp, channel).row = row;
         }
@@ -2165,7 +2184,7 @@ void setFocusCellToLatest(byte sp, byte channel) {
   // at this point, all touched cells have been scanned and focus has been reassigned to the latest touched cell
   // if this was the last note to be released, reset the focused cell data
   if (latestTouch == 0) {
-    DEBUGPRINTF(0,"setFocusCellToLatest[0,0] default\n");
+    //DEBUGPRINTF(0,"setFocusCellToLatest[0,0] default\n");
     focus(sp, channel).col = 0;   // column 0 are the control keys, so this combination can never be true for playing keys
     focus(sp, channel).row = 0;
   }

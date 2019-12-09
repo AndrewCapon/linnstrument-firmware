@@ -51,6 +51,9 @@ struct __attribute__ ((packed)) ChannelOffset {
     return pitchOffsetResult;
   }
 
+
+
+
   int     pitchOffset;
   int     historicPitchOffset;
   int8_t  noteOffset;
@@ -94,31 +97,33 @@ inline void updateChannelOffsetColRow(byte split, byte channel, byte col, byte r
   channelOffsets.offset[channel][split].row = row;
 }
 
-
 // Store Pitch bend offset for a channel
 // also calculate note offset
 inline void storeChannelOffset(byte split, int &pitch, byte col, byte row, byte channel, int8_t noteNum) {
   static int32_t fpPBPerNote = FXD_DIV(8192, 48); // Only calculate once
 
-  DEBUGPRINTF(0,"storeChannelOffset noteNum = %d\n", noteNum);
   ChannelOffset &channelOffset = channelOffsets.offset[channel][split];
 
-  if(channelOffset.shouldApplyHistoricPitchOffset(sensorCol, sensorRow)){
-    channelOffset.historicPitchOffset = channelOffset.totalPitchOffset();
+  // in monoAlterPitch mode only update if no existing note, or the note is the same as the stored note
+  if((Split[sensorSplit].monoMode != monoAlterPitch) || ((Split[sensorSplit].monoMode == monoAlterPitch) && ((noteNum == channelOffset.noteNum) || (channelOffset.noteNum == -1)) )) {
+    if(channelOffset.shouldApplyHistoricPitchOffset(sensorCol, sensorRow)){
+      channelOffset.historicPitchOffset = channelOffset.totalPitchOffset();
+    }
+
+    byte bendRange = getBendRange(split);
+
+
+    int8_t  noteOffset = FXD_TO_INT(FXD_DIV(FXD_FROM_INT(channelOffset.totalPitchOffset()), fpPBPerNote));
+    noteOffset = constrain(noteOffset, 0-bendRange, bendRange);
+
+    channelOffset.pitchOffset = constrainPitch(split, pitch);
+    channelOffset.noteOffset = noteOffset;
+    channelOffset.col = col;
+    channelOffset.row = row;
+    channelOffset.initState = false;
+    channelOffset.noteNum = noteNum;
+    //DEBUGPRINTF(0, "updateChannelOffsetColRow pitch = %d, constrained pitch = %d, notenum = %d\n", pitch, channelOffset.pitchOffset, noteNum);
   }
-
-  byte bendRange = getBendRange(split);
-
-
-  int8_t  noteOffset = FXD_TO_INT(FXD_DIV(FXD_FROM_INT(channelOffset.totalPitchOffset()), fpPBPerNote));
-  noteOffset = constrain(noteOffset, 0-bendRange, bendRange);
-
-  channelOffset.pitchOffset = constrainPitch(split, pitch);
-  channelOffset.noteOffset = noteOffset;
-  channelOffset.col = col;
-  channelOffset.row = row;
-  channelOffset.initState = false;
-  channelOffset.noteNum = noteNum;
 }
 
 // Handle release cell for split/channel, if no notes held initialize offset
@@ -127,6 +132,16 @@ inline void handleChannelOffsetRelease(byte split, byte channel){
     channelOffsets.offset[channel][split].initialize();
   }
 }
+
+inline bool channelOffsetShouldSendNoteOn(byte split, byte channel, int8_t noteNum) {
+  DEBUGPRINTF(0,"count = %d\n", countTouchesForMidiChannel(split, channel));
+  return ((Split[sensorSplit].monoMode != monoAlterPitch) || ((Split[sensorSplit].monoMode == monoAlterPitch) && countTouchesForMidiChannel(split, channel) == 1 ));
+
+  // ChannelOffset &channelOffset = channelOffsets.offset[channel][split];
+
+  // return channelOffset.shouldSendNoteOn(Split[sensorSplit].monoMode, noteNum);
+}
+
 
 // Return the ChannelOffset for a split/channel
 inline const struct ChannelOffset &getChannelOffset(byte split, byte channel) {
