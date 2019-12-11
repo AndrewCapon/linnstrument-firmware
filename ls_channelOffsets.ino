@@ -69,10 +69,10 @@ struct __attribute__ ((packed)) ChannelOffset {
 struct ChannelOffsets {
   void initialize()
   {
-    for(byte channel = 0; channel < 16; channel++)
+    for(byte channel = 1; channel <= 16; channel++)
     {
       for(byte split = 0; split < NUMSPLITS; split++)
-        offset[channel][split].initialize();
+        offset[channel-1][split].initialize();
     }
   }
 
@@ -93,8 +93,8 @@ void initializeChannelOffsets() {
 
 // Update the column and row in control of the offset for a channel/split
 inline void updateChannelOffsetColRow(byte split, byte channel, byte col, byte row){
-  channelOffsets.offset[channel][split].col = col;
-  channelOffsets.offset[channel][split].row = row;
+  channelOffsets.offset[channel-1][split].col = col;
+  channelOffsets.offset[channel-1][split].row = row;
 }
 
 // Store Pitch bend offset for a channel
@@ -102,7 +102,7 @@ inline void updateChannelOffsetColRow(byte split, byte channel, byte col, byte r
 inline void storeChannelOffset(byte split, int &pitch, byte col, byte row, byte channel, int8_t noteNum) {
   static int32_t fpPBPerNote = FXD_DIV(8192, 48); // Only calculate once
 
-  ChannelOffset &channelOffset = channelOffsets.offset[channel][split];
+  ChannelOffset &channelOffset = channelOffsets.offset[channel-1][split];
 
   // in monoAlterPitch mode only update if no existing note, or the note is the same as the stored note
   if((Split[sensorSplit].monoMode != monoAlterPitch) || ((Split[sensorSplit].monoMode == monoAlterPitch) && ((noteNum == channelOffset.noteNum) || (channelOffset.noteNum == -1)) )) {
@@ -129,7 +129,7 @@ inline void storeChannelOffset(byte split, int &pitch, byte col, byte row, byte 
 // Handle release cell for split/channel, if no notes held initialize offset
 inline void handleChannelOffsetRelease(byte split, byte channel){
   if(countTouchesForMidiChannel(split, channel) == 0){
-    channelOffsets.offset[channel][split].initialize();
+    channelOffsets.offset[channel-1][split].initialize();
   }
 }
 
@@ -137,7 +137,7 @@ inline bool channelOffsetShouldSendNoteOn(byte split, byte channel, int8_t noteN
   DEBUGPRINTF(0,"count = %d\n", countTouchesForMidiChannel(split, channel));
   return ((Split[sensorSplit].monoMode != monoAlterPitch) || ((Split[sensorSplit].monoMode == monoAlterPitch) && countTouchesForMidiChannel(split, channel) == 1 ));
 
-  // ChannelOffset &channelOffset = channelOffsets.offset[channel][split];
+  // ChannelOffset &channelOffset = channelOffsets.offset[channel-1][split];
 
   // return channelOffset.shouldSendNoteOn(Split[sensorSplit].monoMode, noteNum);
 }
@@ -145,5 +145,5 @@ inline bool channelOffsetShouldSendNoteOn(byte split, byte channel, int8_t noteN
 
 // Return the ChannelOffset for a split/channel
 inline const struct ChannelOffset &getChannelOffset(byte split, byte channel) {
-  return channelOffsets.offset[channel][split];
+  return channelOffsets.offset[channel-1][split];
 }
