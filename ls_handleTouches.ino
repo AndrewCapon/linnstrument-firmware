@@ -861,17 +861,20 @@ boolean handleXYZupdate() {
         }
       }
 
-      // Check to see if we have previous touches for channel
-      // if so offset new note by inverse of stored note offset which 
-      // has been calculated from pitchbend offsets
-      byte channel = takeChannel(sensorSplit, sensorRow);
       int pitchValue = 0;
+      if(Split[sensorSplit].midiMode != 1) { // disable for channel per note mode
+        // Check to see if we have previous touches for channel
+        // if so offset new note by inverse of stored note offset which 
+        // has been calculated from pitchbend offsets
 
-      byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, channel);
-      if (touchesForChannel != 0) {
-        const ChannelOffset &channelOffset = getChannelOffset(sensorSplit, channel);
-        notenum -= channelOffset.noteOffset;
-        pitchValue = channelOffset.totalPitchOffset();
+        byte channel = takeChannel(sensorSplit, sensorRow);
+
+        byte touchesForChannel = countTouchesForMidiChannel(sensorSplit, channel);
+        if (touchesForChannel != 0) {
+          const ChannelOffset &channelOffset = getChannelOffset(sensorSplit, channel);
+          notenum -= channelOffset.noteOffset;
+          pitchValue = channelOffset.totalPitchOffset();
+        }
       }
 
       // if the note number is outside of MIDI range, don't start it
